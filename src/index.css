@@ -1,0 +1,277 @@
+:root{
+  --bg-base:#1C1712;
+  --bg-panel:#241D16;
+  --bg-panel-raised:#2C231A;
+  --border:#3A2E22;
+  --border-soft:#2F251B;
+  --text-primary:#EDE5D6;
+  --text-secondary:#9C8E7A;
+  --text-tertiary:#6E6353;
+
+  --water:#4FA3C4;
+  --water-dim:#2E5C6C;
+  --health:#8CB369;
+  --health-dim:#4F6339;
+  --alert:#D9924A;
+  --critical:#C4574F;
+
+  --font-display:'Space Grotesk', sans-serif;
+  --font-body:'IBM Plex Sans', sans-serif;
+  --font-mono:'IBM Plex Mono', monospace;
+
+  --radius:10px;
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:
+    radial-gradient(ellipse at 20% -10%, #2A2114 0%, transparent 55%),
+    var(--bg-base);
+  color:var(--text-primary);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+}
+
+.app{
+  max-width:1240px;
+  margin:0 auto;
+  padding:20px 24px 40px;
+}
+
+/* Topbar */
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding-bottom:20px;
+  margin-bottom:20px;
+  border-bottom:1px solid var(--border-soft);
+  flex-wrap:wrap;
+  gap:14px;
+}
+.topbar-left{display:flex;align-items:center;gap:28px;flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:8px;color:var(--water);}
+.brand-mark{width:22px;height:22px;}
+.brand-name{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:17px;
+  letter-spacing:0.02em;
+  color:var(--text-primary);
+}
+.field-picker{display:flex;flex-direction:column;line-height:1.3;padding-left:28px;border-left:1px solid var(--border);}
+.field-name{font-family:var(--font-display);font-weight:600;font-size:15px;}
+.field-sub{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);}
+
+.topbar-right{display:flex;align-items:center;gap:16px;}
+.status-pill{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:11.5px;
+  padding:6px 12px;border-radius:100px;
+  border:1px solid var(--health-dim);
+  color:var(--health);
+  background:rgba(140,179,105,0.08);
+}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--health);box-shadow:0 0 0 3px rgba(140,179,105,0.18);}
+.clock{font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:150px;text-align:right;}
+
+/* Grid */
+.grid{
+  display:grid;
+  grid-template-columns: 1.1fr 1.3fr 0.9fr;
+  grid-template-rows: auto auto;
+  gap:16px;
+}
+.panel--profile{grid-column:1;grid-row:1 / span 2;}
+.panel--recommend{grid-column:2;grid-row:1;}
+.panel--weather{grid-column:3;grid-row:1;}
+.panel--trend{grid-column:2 / span 2;grid-row:2;}
+.panel--sensors{grid-column:1 / -1;}
+
+.panel{
+  background:var(--bg-panel);
+  border:1px solid var(--border-soft);
+  border-radius:var(--radius);
+  padding:18px 20px 20px;
+}
+.panel-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin-bottom:14px;
+  padding-bottom:12px;
+  border-bottom:1px solid var(--border-soft);
+}
+.panel-head h2{
+  font-family:var(--font-display);
+  font-size:14px;
+  font-weight:600;
+  margin:0;
+  letter-spacing:0.01em;
+}
+.panel-sub{font-family:var(--font-mono);font-size:10.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;}
+
+/* Soil profile signature element */
+.profile-body{display:flex;gap:16px;align-items:flex-start;}
+.soil-svg{width:100%;height:auto;flex:1;}
+.profile-legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;padding-top:8px;}
+.profile-legend li{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);white-space:nowrap;}
+.swatch{width:9px;height:9px;border-radius:2px;display:inline-block;}
+.swatch--wet{background:var(--water);}
+.swatch--ok{background:var(--health);}
+.swatch--low{background:var(--alert);}
+
+/* Recommendation */
+.recommend-headline{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+.recommend-label{font-family:var(--font-mono);font-size:10.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;}
+.recommend-value{font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--water);}
+.recommend-reason{font-size:13px;line-height:1.55;color:var(--text-secondary);margin:0 0 16px;}
+.recommend-meta{display:flex;gap:22px;margin-bottom:18px;flex-wrap:wrap;}
+.meta-item{display:flex;flex-direction:column;gap:3px;}
+.meta-label{font-family:var(--font-mono);font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;}
+.meta-value{font-family:var(--font-mono);font-size:15px;font-weight:500;}
+.meta-value--good{color:var(--health);}
+.btn-primary{
+  font-family:var(--font-body);
+  font-weight:600;
+  font-size:13px;
+  color:var(--bg-base);
+  background:var(--water);
+  border:none;
+  padding:11px 18px;
+  border-radius:7px;
+  cursor:pointer;
+  transition:filter 0.15s ease, background 0.15s ease;
+}
+.btn-primary:hover{filter:brightness(1.1);}
+.btn-primary:focus-visible{outline:2px solid var(--water);outline-offset:3px;}
+
+/* Weather */
+.weather-strip{display:flex;flex-direction:column;gap:10px;}
+.weather-day{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--border-soft);}
+.weather-day:last-child{border-bottom:none;}
+.weather-day-name{color:var(--text-secondary);width:70px;}
+.weather-day-icon{font-size:16px;width:26px;text-align:center;}
+.weather-day-temp{font-family:var(--font-mono);width:70px;text-align:right;}
+.weather-day-rain{font-family:var(--font-mono);font-size:11px;color:var(--water);width:40px;text-align:right;}
+
+/* Trend chart */
+.trend-svg{width:100%;height:auto;}
+
+/* Sensor cards */
+.sensor-cards{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px,1fr));gap:12px;}
+.sensor-card{
+  background:var(--bg-panel-raised);
+  border:1px solid var(--border-soft);
+  border-radius:8px;
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.sensor-card-label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-tertiary);}
+.sensor-card-value{font-family:var(--font-display);font-size:24px;font-weight:600;}
+.sensor-card-node{font-family:var(--font-mono);font-size:10px;color:var(--text-secondary);}
+
+/* Footer */
+.foot{
+  margin-top:24px;
+  text-align:center;
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  color:var(--text-tertiary);
+}
+.foot code{color:var(--text-secondary);}
+
+/* Responsive */
+@media (max-width: 980px){
+  .grid{grid-template-columns:1fr;}
+  .panel--profile{grid-column:1;grid-row:auto;}
+  .panel--recommend{grid-column:1;grid-row:auto;}
+  .panel--weather{grid-column:1;grid-row:auto;}
+  .panel--trend{grid-column:1;grid-row:auto;}
+  .profile-body{flex-direction:column;}
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:none !important;animation:none !important;}
+}
+
+/* Auth pages (login / signup) */
+.auth-shell{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+.auth-card{
+  width:100%;
+  max-width:380px;
+  background:var(--bg-panel);
+  border:1px solid var(--border-soft);
+  border-radius:var(--radius);
+  padding:28px 28px 24px;
+}
+.auth-brand{margin-bottom:22px;}
+.auth-title{
+  font-family:var(--font-display);
+  font-size:20px;
+  font-weight:600;
+  margin:0 0 4px;
+}
+.auth-sub{
+  font-size:13px;
+  color:var(--text-secondary);
+  margin:0 0 22px;
+}
+.auth-form{display:flex;flex-direction:column;gap:4px;}
+.field-label{
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  color:var(--text-tertiary);
+  margin-top:12px;
+}
+.field-input{
+  background:var(--bg-panel-raised);
+  border:1px solid var(--border);
+  border-radius:7px;
+  padding:10px 12px;
+  color:var(--text-primary);
+  font-family:var(--font-body);
+  font-size:14px;
+  outline:none;
+}
+.field-input:focus{border-color:var(--water);}
+.field-error{
+  color:var(--critical);
+  font-size:12.5px;
+  margin:10px 0 0;
+}
+.auth-submit{margin-top:20px;width:100%;}
+.auth-switch{
+  margin:20px 0 0;
+  font-size:12.5px;
+  color:var(--text-secondary);
+  text-align:center;
+}
+.auth-switch a{color:var(--water);text-decoration:none;}
+.auth-switch a:hover{text-decoration:underline;}
+
+/* User menu in topbar */
+.user-menu{display:flex;align-items:center;gap:10px;padding-left:14px;border-left:1px solid var(--border);}
+.user-name{font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);}
+.btn-ghost{
+  font-family:var(--font-body);
+  font-size:12px;
+  font-weight:500;
+  color:var(--text-secondary);
+  background:transparent;
+  border:1px solid var(--border);
+  padding:6px 12px;
+  border-radius:7px;
+  cursor:pointer;
+}
+.btn-ghost:hover{color:var(--text-primary);border-color:var(--border-strong,var(--border));}
