@@ -12,7 +12,7 @@ export const depthSensors = [
 export const sensorReadings = [
   { label: "Soil moisture (avg)", value: "54%", node: "3 nodes" },
   { label: "Soil temperature", value: "23.4°C", node: "Node 02" },
-  { label: "Ambient temperature", value: "27.1°C", node: "Weather node" },
+  { label: "light Intensity", value: "10000 cd/m²", node: "Weather node" },
   { label: "Ambient humidity", value: "48%", node: "Weather node" },
 ];
 
