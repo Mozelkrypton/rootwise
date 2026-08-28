@@ -79,7 +79,9 @@ export default function Dashboard() {
             <span className="brand-name">RootWise</span>
           </div>
           <div className="field-picker">
-            <span className="field-name">North Plot — Maize</span>
+            <span className="field-name">
+              North Plot — {telemetry.crop ? telemetry.crop.charAt(0).toUpperCase() + telemetry.crop.slice(1) : "Maize"}
+            </span>
             <span className="field-sub">
               0.8 ha · ESP32 node {telemetry.isOnline ? "online" : "offline"}
             </span>

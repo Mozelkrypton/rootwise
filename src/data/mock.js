@@ -12,11 +12,17 @@ export const THRESHOLDS = {
 /** ESP32 node telemetry — single hardware node readings */
 export const nodeTelemetry = {
   temperature: 24.6,
+  tempC: 24.6,
   humidity: 48,
   soilMoisture: 54,
+  soilPct: 54,
   lightIntensity: 72,
+  lightPct: 72,
   pumpStatus: false,
   pumpOverride: null,
+  crop: "maize",
+  soilOn: 35,
+  soilOff: 60,
   isOnline: true,
   lastHeartbeat: new Date(Date.now() - 12_000).toISOString(),
 };

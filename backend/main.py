@@ -17,6 +17,7 @@ from models import (
     TelemetryCommandResponse,
     TelemetryHistoryResponse,
     TelemetryIngest,
+    TelemetrySnapshot,
 )
 from store import TelemetryReading, store
 
@@ -26,7 +27,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("rootwise.telemetry")
 
-app = FastAPI(title="RootWise Telemetry", version="0.1.0")
+app = FastAPI(
+    title="RootWise Telemetry",
+    version="0.2.0",
+    description="HTTP REST ingestion for ESP32 nodes (MQTT bridge deferred).",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,14 +54,27 @@ async def validation_exception_handler(
     )
 
 
-def _reading_to_history_entry(reading: TelemetryReading) -> HistoryEntry:
-    return HistoryEntry(
+def _snapshot_from_reading(reading: TelemetryReading) -> TelemetrySnapshot:
+    return TelemetrySnapshot(
         node_id=reading.node_id,
         temperature=reading.temperature,
+        temp_c=reading.temperature,
         humidity=reading.humidity,
         soil_moisture=reading.soil_moisture,
+        soil_pct=reading.soil_moisture,
         light_intensity=reading.light_intensity,
+        light_pct=reading.light_intensity,
         pump_status=reading.pump_status,
+        crop=reading.crop,
+        soil_on=reading.soil_on,
+        soil_off=reading.soil_off,
+    )
+
+
+def _reading_to_history_entry(reading: TelemetryReading) -> HistoryEntry:
+    snapshot = _snapshot_from_reading(reading)
+    return HistoryEntry(
+        **snapshot.model_dump(),
         timestamp=reading.timestamp.isoformat(),
     )
 
@@ -70,17 +88,24 @@ async def ingest_telemetry(payload: TelemetryIngest) -> TelemetryCommandResponse
         soil_moisture=payload.soil_moisture,
         light_intensity=payload.light_intensity,
         pump_status=payload.pump_status,
+        crop=payload.crop,
+        soil_on=payload.soil_on,
+        soil_off=payload.soil_off,
         timestamp=datetime.now(timezone.utc),
     )
     store.ingest(reading)
     logger.info(
-        "Telemetry from %s: temp=%.1f°C humidity=%.1f%% soil=%.1f%% light=%.1f%% pump=%s",
+        "Telemetry from %s (%s): temp=%.1f°C humidity=%.1f%% soil=%.1f%% "
+        "light=%.1f%% pump=%s thresholds=%.0f/%.0f",
         reading.node_id,
+        reading.crop,
         reading.temperature,
         reading.humidity,
         reading.soil_moisture,
         reading.light_intensity,
         reading.pump_status,
+        reading.soil_on,
+        reading.soil_off,
     )
     return TelemetryCommandResponse(status="ok", pump_override=store.pump_override)
 
@@ -91,13 +116,9 @@ async def get_latest_telemetry() -> LatestTelemetryResponse:
     if latest is None:
         raise HTTPException(status_code=404, detail="No telemetry received yet")
 
+    snapshot = _snapshot_from_reading(latest)
     return LatestTelemetryResponse(
-        node_id=latest.node_id,
-        temperature=latest.temperature,
-        humidity=latest.humidity,
-        soil_moisture=latest.soil_moisture,
-        light_intensity=latest.light_intensity,
-        pump_status=latest.pump_status,
+        **snapshot.model_dump(),
         is_online=store.is_online(),
         last_heartbeat=latest.timestamp.isoformat(),
         pump_override=store.pump_override,
@@ -119,4 +140,4 @@ async def set_pump_override(body: PumpOverrideRequest) -> PumpOverrideResponse:
 
 @app.get("/health")
 async def health() -> Dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "ingestion": "http"}

@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Deque, Dict, List, Optional
 
+from models import DEFAULT_CROP, DEFAULT_SOIL_OFF, DEFAULT_SOIL_ON
+
 HISTORY_LIMIT = 100
 ONLINE_THRESHOLD_SECONDS = 15
 
@@ -17,16 +19,25 @@ class TelemetryReading:
     soil_moisture: float
     light_intensity: float
     pump_status: bool
+    crop: str = DEFAULT_CROP
+    soil_on: float = DEFAULT_SOIL_ON
+    soil_off: float = DEFAULT_SOIL_OFF
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> Dict:
         return {
             "node_id": self.node_id,
             "temperature": self.temperature,
+            "temp_c": self.temperature,
             "humidity": self.humidity,
             "soil_moisture": self.soil_moisture,
+            "soil_pct": self.soil_moisture,
             "light_intensity": self.light_intensity,
+            "light_pct": self.light_intensity,
             "pump_status": self.pump_status,
+            "crop": self.crop,
+            "soil_on": self.soil_on,
+            "soil_off": self.soil_off,
             "timestamp": self.timestamp.isoformat(),
         }
 

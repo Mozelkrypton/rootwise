@@ -60,6 +60,27 @@ curl -X POST http://localhost:8000/api/telemetry \
 
 The ESP32 receives `{ "status": "ok", "pump_override": null }` (or `true`/`false` when a dashboard override is active).
 
+**Ingestion protocol:** HTTP REST (`POST /api/telemetry`). MQTT bridge (`smartagri/field1/data`) is deferred — the active stack uses `HTTPClient` on-device.
+
+**Telemetry schema** (canonical + aliases accepted on ingest):
+
+```json
+{
+  "node_id": "esp32-node-01",
+  "temperature": 24.5,
+  "temp_c": 24.5,
+  "humidity": 65.0,
+  "soil_moisture": 42.0,
+  "soil_pct": 42.0,
+  "light_intensity": 78.0,
+  "light_pct": 78.0,
+  "pump_status": false,
+  "crop": "maize",
+  "soil_on": 35,
+  "soil_off": 60
+}
+```
+
 ## ESP32 firmware
 
 See [`firmware/README.md`](firmware/README.md) for PlatformIO build/upload instructions and pin wiring.

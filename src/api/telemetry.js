@@ -1,11 +1,21 @@
 export function mapTelemetryFromApi(data) {
+  const temperature = data.temperature ?? data.temp_c;
+  const soilMoisture = data.soil_moisture ?? data.soil_pct;
+  const lightIntensity = data.light_intensity ?? data.light_pct;
+
   return {
     nodeId: data.node_id,
-    temperature: data.temperature,
+    temperature,
+    tempC: temperature,
     humidity: data.humidity,
-    soilMoisture: data.soil_moisture,
-    lightIntensity: data.light_intensity,
+    soilMoisture,
+    soilPct: soilMoisture,
+    lightIntensity,
+    lightPct: lightIntensity,
     pumpStatus: data.pump_status,
+    crop: data.crop ?? "maize",
+    soilOn: data.soil_on ?? 35,
+    soilOff: data.soil_off ?? 60,
     isOnline: data.is_online,
     lastHeartbeat: data.last_heartbeat,
     pumpOverride: data.pump_override ?? null,
@@ -33,11 +43,14 @@ export async function fetchTelemetryHistory() {
   const data = await res.json();
   return data.readings.map((r) => ({
     timestamp: r.timestamp,
-    soilMoisture: r.soil_moisture,
-    temperature: r.temperature,
+    soilMoisture: r.soil_moisture ?? r.soil_pct,
+    temperature: r.temperature ?? r.temp_c,
     humidity: r.humidity,
-    lightIntensity: r.light_intensity,
+    lightIntensity: r.light_intensity ?? r.light_pct,
     pumpStatus: r.pump_status,
+    crop: r.crop,
+    soilOn: r.soil_on,
+    soilOff: r.soil_off,
   }));
 }
 

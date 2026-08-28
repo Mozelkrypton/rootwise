@@ -59,9 +59,9 @@ function MetricCard({ title, subtitle, status, children, className = "" }) {
   );
 }
 
-function SoilMoistureCard({ soilMoisture, pumpActive }) {
+function SoilMoistureCard({ soilMoisture, pumpActive, soilOn, soilOff }) {
   const status = getSoilMoistureStatus(soilMoisture);
-  const needsWater = soilMoisture < THRESHOLDS.soilMoisture.optimalMin;
+  const needsWater = soilMoisture < soilOn;
   const styles = STATUS_STYLES[status.level];
 
   return (
@@ -78,7 +78,7 @@ function SoilMoistureCard({ soilMoisture, pumpActive }) {
             <span className="text-2xl font-semibold text-stone-400">%</span>
           </p>
           <p className="mt-1 font-[family-name:var(--font-mono)] text-[11px] text-stone-500">
-            Optimal range {THRESHOLDS.soilMoisture.optimalMin}–{THRESHOLDS.soilMoisture.optimalMax}%
+            Pump on &lt;{soilOn}% · off ≥{soilOff}%
           </p>
         </div>
         <div
@@ -239,7 +239,12 @@ export default function SensorMetrics({
 }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <SoilMoistureCard soilMoisture={telemetry.soilMoisture} pumpActive={pumpActive} />
+      <SoilMoistureCard
+        soilMoisture={telemetry.soilMoisture}
+        pumpActive={pumpActive}
+        soilOn={telemetry.soilOn ?? 35}
+        soilOff={telemetry.soilOff ?? 60}
+      />
       <AmbientCard temperature={telemetry.temperature} humidity={telemetry.humidity} />
       <LightCard lightIntensity={telemetry.lightIntensity} />
       <PumpCard

@@ -4,3 +4,6 @@ dist
 backend/.venv
 __pycache__
 *.pyc
+venv/
+backend/venv/
+firmware/.pio/

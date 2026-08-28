@@ -1,8 +1,8 @@
 /**
  * RootWise ESP32 Node Firmware
  *
- * Reads DHT22, soil moisture, and LDR sensors; controls irrigation relay;
- * displays live readings on a 16x2 I2C LCD; posts telemetry to the FastAPI backend.
+ * HTTP REST telemetry to FastAPI backend (no MQTT on-device).
+ * Schema aligned with backend/models.py and src/api/telemetry.js.
  */
 
 #include <Arduino.h>
@@ -12,50 +12,35 @@
 #include <DHT.h>
 #include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
+#include <esp_task_wdt.h>
+#include "board_config.h"
 
 // ---------------------------------------------------------------------------
-// Network configuration — edit before flashing
+// Network & field configuration — edit before flashing
 // ---------------------------------------------------------------------------
-#define WIFI_SSID "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
-#define SERVER_URL "http://192.168.1.100:8000/api/telemetry"
+#define WIFI_SSID "Kenzie"
+#define WIFI_PASSWORD "WeakLink"
+#define SERVER_URL "http://10.91.210.203:8000/api/telemetry"
 #define NODE_ID "esp32-node-01"
+#define CROP_NAME "maize"
 
-// ---------------------------------------------------------------------------
-// Pin mapping
-// ---------------------------------------------------------------------------
-#define DHT_PIN 4
-#define SOIL_MOISTURE_PIN 34
-#define LDR_PIN 35
-#define RELAY_PIN 26
-#define I2C_SDA 21
-#define I2C_SCL 22
-#define LCD_I2C_ADDR 0x27
-
-// Relay modules are often active-LOW; set HIGH if your module is active-HIGH.
-#define RELAY_ACTIVE LOW
+// Pump automation thresholds (%); mirrored in telemetry payload as soil_on/soil_off
+static const float SOIL_PUMP_ON_THRESHOLD = 35.0f;
+static const float SOIL_PUMP_OFF_THRESHOLD = 60.0f;
 
 // ---------------------------------------------------------------------------
 // Timing
 // ---------------------------------------------------------------------------
 static const unsigned long TELEMETRY_INTERVAL_MS = 3000;
 static const unsigned long WIFI_RETRY_INTERVAL_MS = 10000;
-static const unsigned long LCD_REFRESH_INTERVAL_MS = 500;
-
-// ---------------------------------------------------------------------------
-// Automation thresholds (%)
-// ---------------------------------------------------------------------------
-static const float SOIL_PUMP_ON_THRESHOLD = 35.0f;
-static const float SOIL_PUMP_OFF_THRESHOLD = 60.0f;
+static const unsigned long LCD_REFRESH_INTERVAL_MS = 5000;
+static const unsigned long DHT_MIN_INTERVAL_MS = 2200;
 
 // ---------------------------------------------------------------------------
 // ADC calibration — tune these on your bench
 // ---------------------------------------------------------------------------
-// Capacitive soil probe: dry soil reads higher ADC, wet soil reads lower ADC.
 static const int SOIL_ADC_DRY = 4095;
 static const int SOIL_ADC_WET = 1500;
-
-// LDR divider: dark = low ADC, bright = high ADC (adjust for your wiring).
 static const int LDR_ADC_DARK = 400;
 static const int LDR_ADC_BRIGHT = 3600;
 
@@ -65,9 +50,8 @@ static const int LDR_ADC_BRIGHT = 3600;
 DHT dht(DHT_PIN, DHT22);
 LiquidCrystal_I2C lcd(LCD_I2C_ADDR, 16, 2);
 
-// ---------------------------------------------------------------------------
-// Sensor / control state
-// ---------------------------------------------------------------------------
+bool lcdAvailable = false;
+
 struct SensorState {
   float temperature = NAN;
   float humidity = NAN;
@@ -87,6 +71,7 @@ PumpOverrideMode pumpOverride = OVERRIDE_AUTO;
 unsigned long lastTelemetryMs = 0;
 unsigned long lastWifiAttemptMs = 0;
 unsigned long lastLcdRefreshMs = 0;
+unsigned long lastDhtReadMs = 0;
 
 char lcdLine1[17] = "";
 char lcdLine2[17] = "";
@@ -94,7 +79,35 @@ char lcdLine1Prev[17] = "";
 char lcdLine2Prev[17] = "";
 
 // ---------------------------------------------------------------------------
-// Relay helpers
+// I2C helpers
+// ---------------------------------------------------------------------------
+static bool probeI2C(uint8_t address) {
+  Wire.beginTransmission(address);
+  const uint8_t err = Wire.endTransmission();
+  yield();
+  return err == 0;
+}
+
+static bool initLcdIfPresent() {
+  if (!probeI2C(LCD_I2C_ADDR)) {
+    Serial.printf("LCD not found at 0x%02X — display disabled\n", LCD_I2C_ADDR);
+    return false;
+  }
+
+  lcd.init();
+  yield();
+  lcd.backlight();
+  lcd.clear();
+  lcd.print("RootWise ESP32");
+  lcd.setCursor(0, 1);
+  lcd.print("Starting...");
+  yield();
+  Serial.printf("LCD ready at 0x%02X\n", LCD_I2C_ADDR);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Relay / ADC
 // ---------------------------------------------------------------------------
 static int relayLevelForPump(bool on) {
   const int relayOn = RELAY_ACTIVE;
@@ -107,14 +120,12 @@ static void setPump(bool on) {
   sensors.pumpStatus = on;
 }
 
-// ---------------------------------------------------------------------------
-// ADC helpers
-// ---------------------------------------------------------------------------
 static int readAdcAverage(uint8_t pin, uint8_t samples = 8) {
   long total = 0;
   for (uint8_t i = 0; i < samples; i++) {
     total += analogRead(pin);
-    delay(2);
+    delay(1);
+    yield();
   }
   return static_cast<int>(total / samples);
 }
@@ -127,7 +138,6 @@ static float mapAdcToPercent(int adcValue, int adcMin, int adcMax) {
 
 static float readSoilMoisturePercent() {
   const int adc = readAdcAverage(SOIL_MOISTURE_PIN);
-  // Invert mapping: high ADC = dry (0%), low ADC = wet (100%).
   return 100.0f - mapAdcToPercent(adc, SOIL_ADC_WET, SOIL_ADC_DRY);
 }
 
@@ -137,26 +147,31 @@ static float readLightIntensityPercent() {
 }
 
 // ---------------------------------------------------------------------------
-// Sensor reads
+// Sensors — rate-limited DHT, keep last good values on failure
 // ---------------------------------------------------------------------------
 static void readSensors() {
-  const float temp = dht.readTemperature();
-  const float hum = dht.readHumidity();
+  const unsigned long now = millis();
 
-  if (!isnan(temp)) {
-    sensors.temperature = temp;
-  }
-  if (!isnan(hum)) {
-    sensors.humidity = hum;
+  if (now - lastDhtReadMs >= DHT_MIN_INTERVAL_MS) {
+    lastDhtReadMs = now;
+
+    const float temp = dht.readTemperature();
+    yield();
+    const float hum = dht.readHumidity();
+    yield();
+
+    if (!isnan(temp)) {
+      sensors.temperature = temp;
+    }
+    if (!isnan(hum)) {
+      sensors.humidity = hum;
+    }
   }
 
   sensors.soilMoisture = readSoilMoisturePercent();
   sensors.lightIntensity = readLightIntensityPercent();
 }
 
-// ---------------------------------------------------------------------------
-// Pump control
-// ---------------------------------------------------------------------------
 static void updatePumpControl() {
   bool desiredOn = sensors.pumpStatus;
 
@@ -174,7 +189,6 @@ static void updatePumpControl() {
       } else if (sensors.soilMoisture >= SOIL_PUMP_OFF_THRESHOLD) {
         desiredOn = false;
       }
-      // Between thresholds: keep previous state (hysteresis).
       break;
   }
 
@@ -182,37 +196,55 @@ static void updatePumpControl() {
 }
 
 // ---------------------------------------------------------------------------
-// LCD — update only changed lines to avoid flicker
+// LCD — skipped when display not detected
 // ---------------------------------------------------------------------------
 static void writeLcdLine(uint8_t row, const char *text, char *cachePrev) {
-  if (strcmp(text, cachePrev) == 0) {
+  if (!lcdAvailable || strcmp(text, cachePrev) == 0) {
     return;
   }
 
+  if (!probeI2C(LCD_I2C_ADDR)) {
+    lcdAvailable = false;
+    Serial.println("LCD I2C lost — disabling display updates");
+    return;
+  }
+
+  esp_task_wdt_reset();
   lcd.setCursor(0, row);
   lcd.print(text);
   const size_t len = strlen(text);
   for (size_t i = len; i < 16; i++) {
     lcd.print(' ');
+    yield();
   }
+  esp_task_wdt_reset();
 
   strncpy(cachePrev, text, 16);
   cachePrev[16] = '\0';
 }
 
 static void updateLcd() {
+  if (!lcdAvailable) {
+    return;
+  }
+
   const unsigned long now = millis();
   if (now - lastLcdRefreshMs < LCD_REFRESH_INTERVAL_MS) {
     return;
   }
   lastLcdRefreshMs = now;
 
+  if (!probeI2C(LCD_I2C_ADDR)) {
+    lcdAvailable = false;
+    Serial.println("LCD not responding — skipping refresh");
+    return;
+  }
+
   const float temp = isnan(sensors.temperature) ? 0.0f : sensors.temperature;
   const float hum = isnan(sensors.humidity) ? 0.0f : sensors.humidity;
 
   snprintf(lcdLine1, sizeof(lcdLine1), "L:%.0f%% T:%.1fC",
            sensors.lightIntensity, temp);
-
   snprintf(lcdLine2, sizeof(lcdLine2), "S:%.0f%% H:%.0f%%",
            sensors.soilMoisture, hum);
 
@@ -245,14 +277,14 @@ static void connectWiFi(bool force) {
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  const uint8_t attempts = 30;
-  for (uint8_t i = 0; i < attempts; i++) {
+  for (uint8_t i = 0; i < 30; i++) {
     if (WiFi.status() == WL_CONNECTED) {
       Serial.print("WiFi connected, IP: ");
       Serial.println(WiFi.localIP());
       return;
     }
     delay(500);
+    yield();
     Serial.print('.');
   }
 
@@ -261,7 +293,7 @@ static void connectWiFi(bool force) {
 }
 
 // ---------------------------------------------------------------------------
-// Backend response parsing
+// Backend
 // ---------------------------------------------------------------------------
 static void applyPumpOverrideFromResponse(const String &responseBody) {
   JsonDocument doc;
@@ -285,21 +317,31 @@ static void applyPumpOverrideFromResponse(const String &responseBody) {
   updatePumpControl();
 }
 
-// ---------------------------------------------------------------------------
-// Telemetry upload
-// ---------------------------------------------------------------------------
+static void appendTelemetryFields(JsonDocument &doc) {
+  const float temp = isnan(sensors.temperature) ? 0.0f : sensors.temperature;
+  const float hum = isnan(sensors.humidity) ? 0.0f : sensors.humidity;
+
+  doc["node_id"] = NODE_ID;
+  doc["temperature"] = temp;
+  doc["temp_c"] = temp;
+  doc["humidity"] = hum;
+  doc["soil_moisture"] = sensors.soilMoisture;
+  doc["soil_pct"] = sensors.soilMoisture;
+  doc["light_intensity"] = sensors.lightIntensity;
+  doc["light_pct"] = sensors.lightIntensity;
+  doc["pump_status"] = sensors.pumpStatus;
+  doc["crop"] = CROP_NAME;
+  doc["soil_on"] = SOIL_PUMP_ON_THRESHOLD;
+  doc["soil_off"] = SOIL_PUMP_OFF_THRESHOLD;
+}
+
 static bool sendTelemetry() {
   if (WiFi.status() != WL_CONNECTED) {
     return false;
   }
 
   JsonDocument doc;
-  doc["node_id"] = NODE_ID;
-  doc["temperature"] = isnan(sensors.temperature) ? 0.0f : sensors.temperature;
-  doc["humidity"] = isnan(sensors.humidity) ? 0.0f : sensors.humidity;
-  doc["soil_moisture"] = sensors.soilMoisture;
-  doc["light_intensity"] = sensors.lightIntensity;
-  doc["pump_status"] = sensors.pumpStatus;
+  appendTelemetryFields(doc);
 
   String payload;
   serializeJson(doc, payload);
@@ -317,6 +359,7 @@ static bool sendTelemetry() {
   const int httpCode = http.POST(payload);
   String response = http.getString();
   http.end();
+  yield();
 
   if (httpCode > 0) {
     Serial.print("HTTP ");
@@ -336,12 +379,18 @@ static bool sendTelemetry() {
   return false;
 }
 
-// ---------------------------------------------------------------------------
-// Arduino entry points
-// ---------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
   delay(200);
+
+  Serial.println("RootWise node — HTTP REST telemetry");
+#if defined(BOARD_ESP32S3)
+  Serial.println("Board profile: ESP32-S3");
+#else
+  Serial.println("Board profile: ESP32");
+#endif
+  Serial.printf("Pins: DHT=%d soil=%d ldr=%d relay=%d i2c=%d/%d\n",
+                DHT_PIN, SOIL_MOISTURE_PIN, LDR_PIN, RELAY_PIN, I2C_SDA, I2C_SCL);
 
   pinMode(RELAY_PIN, OUTPUT);
   setPump(false);
@@ -350,35 +399,35 @@ void setup() {
   analogSetAttenuation(ADC_11db);
 
   Wire.begin(I2C_SDA, I2C_SCL);
-  lcd.init();
-  lcd.backlight();
-  lcd.clear();
-  lcd.print("RootWise ESP32");
-  lcd.setCursor(0, 1);
-  lcd.print("Starting...");
+  Wire.setTimeOut(50);
+  lcdAvailable = initLcdIfPresent();
 
   dht.begin();
-
   connectWiFi(true);
 
-  lcd.clear();
-  memset(lcdLine1Prev, 0xFF, sizeof(lcdLine1Prev));
-  memset(lcdLine2Prev, 0xFF, sizeof(lcdLine2Prev));
+  if (lcdAvailable) {
+    lcd.clear();
+    memset(lcdLine1Prev, 0xFF, sizeof(lcdLine1Prev));
+    memset(lcdLine2Prev, 0xFF, sizeof(lcdLine2Prev));
+  }
 
   lastTelemetryMs = millis() - TELEMETRY_INTERVAL_MS;
 }
 
 void loop() {
+  esp_task_wdt_reset();
   connectWiFi(false);
 
   const unsigned long now = millis();
   if (now - lastTelemetryMs >= TELEMETRY_INTERVAL_MS) {
     lastTelemetryMs = now;
-
     readSensors();
     updatePumpControl();
     sendTelemetry();
   }
 
-  updateLcd();
+  // Runtime LCD refresh disabled — I2C writes can stall the ESP32-S3 WDT on this bus.
+  // Splash screen still shown during setup when the display is detected.
+  // updateLcd();
+  yield();
 }
