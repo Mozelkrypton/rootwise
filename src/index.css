@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root{
   --bg-base:#1C1712;
   --bg-panel:#241D16;
@@ -74,6 +76,18 @@ body{
   color:var(--health);
   background:rgba(140,179,105,0.08);
 }
+.status-pill--warn{
+  border-color:#92400e;
+  color:var(--alert);
+  background:rgba(217,146,74,0.08);
+}
+.status-pill--warn .status-dot{background:var(--alert);box-shadow:0 0 0 3px rgba(217,146,74,0.18);}
+.status-pill--offline{
+  border-color:#7f1d1d;
+  color:var(--critical);
+  background:rgba(196,87,79,0.08);
+}
+.status-pill--offline .status-dot{background:var(--critical);box-shadow:0 0 0 3px rgba(196,87,79,0.18);}
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--health);box-shadow:0 0 0 3px rgba(140,179,105,0.18);}
 .clock{font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);min-width:150px;text-align:right;}
 
@@ -119,7 +133,7 @@ body{
 .swatch{width:9px;height:9px;border-radius:2px;display:inline-block;}
 .swatch--wet{background:var(--water);}
 .swatch--ok{background:var(--health);}
-.swatch--low{background:var(--alert);}
+.swatch--low{background:var(--critical);}
 
 /* Recommendation */
 .recommend-headline{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
@@ -157,21 +171,6 @@ body{
 
 /* Trend chart */
 .trend-svg{width:100%;height:auto;}
-
-/* Sensor cards */
-.sensor-cards{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px,1fr));gap:12px;}
-.sensor-card{
-  background:var(--bg-panel-raised);
-  border:1px solid var(--border-soft);
-  border-radius:8px;
-  padding:14px;
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
-.sensor-card-label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-tertiary);}
-.sensor-card-value{font-family:var(--font-display);font-size:24px;font-weight:600;}
-.sensor-card-node{font-family:var(--font-mono);font-size:10px;color:var(--text-secondary);}
 
 /* Footer */
 .foot{

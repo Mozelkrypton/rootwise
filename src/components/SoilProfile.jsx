@@ -69,9 +69,9 @@ export default function SoilProfile() {
       </svg>
 
       <ul className="profile-legend">
-        <li><span className="swatch swatch--wet"></span>Saturated</li>
-        <li><span className="swatch swatch--ok"></span>Adequate</li>
-        <li><span className="swatch swatch--low"></span>Needs water</li>
+        <li><span className="swatch swatch--ok"></span>Optimal (40–70%)</li>
+        <li><span className="swatch swatch--wet"></span>Saturated (&gt;70%)</li>
+        <li><span className="swatch swatch--low"></span>Dry (&lt;40%)</li>
       </ul>
     </div>
   );

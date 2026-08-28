@@ -21,14 +21,48 @@ To wire it to a real backend, replace the three functions in `AuthContext.jsx`:
 
 Once real, store only the JWT and attach it as `Authorization: Bearer <token>` on every IoT/ML API call so each user only sees their own fields.
 
-Running on mock data (`src/data/mock.js`). To connect the real backend:
+Running on mock data (`src/data/mock.js`) until the telemetry backend receives ESP32 readings. To connect:
 
-- `depthSensors` / `sensorReadings` - `GET /api/readings`
-- `recommendation` - `GET /api/predict`
-- `weather`  - Open-Meteo API
-- `Recommendation.jsx`'s override handler - `POST /api/irrigate/override`
+- Live sensor readings — `GET /api/telemetry/latest` (polled by the dashboard)
+- Moisture trend chart — `GET /api/telemetry/history`
+- Pump manual override — `POST /api/actuators/pump`
+- `recommendation` — `GET /api/predict` (not yet implemented)
+- `weather` — Open-Meteo API
 
-`vite.config.js` has a commented-out proxy for `/api` - `http://localhost:8000` (your FastAPI backend) uncomment once that's running.
+## Telemetry backend (FastAPI)
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+Or from the repo root: `npm run backend`
+
+The Vite dev server proxies `/api` to `http://localhost:8000`.
+
+### ESP32 ingestion
+
+```bash
+curl -X POST http://localhost:8000/api/telemetry \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "esp32-node-01",
+    "temperature": 24.5,
+    "humidity": 65.0,
+    "soil_moisture": 42.0,
+    "light_intensity": 78.0,
+    "pump_status": false
+  }'
+```
+
+The ESP32 receives `{ "status": "ok", "pump_override": null }` (or `true`/`false` when a dashboard override is active).
+
+## ESP32 firmware
+
+See [`firmware/README.md`](firmware/README.md) for PlatformIO build/upload instructions and pin wiring.
 
 ## Structure
 
